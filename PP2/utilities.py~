@@ -1,0 +1,136 @@
+import random as rand
+import pyDes as DES
+import socket
+
+# Port for Alice and Bob to communicate
+AB_PORT = 3158
+
+# Port for Alice and SDK to communicate
+KDC_PORT = 3159
+
+# Alice's Key shared with KDC
+K_A = b'POPCORNSMOVIESSS'
+
+# Bob's Key Shared with KDC
+K_B = b'PANCAKESWAFFLESS'
+
+# Bob's Nonce
+N_B = (137).to_bytes(8, 'little')
+
+# Generate Bytes (padded) for a 64-bit ulong
+def get_ulong():
+
+    # Generate random 64-bit long (padded to 8 bytes)
+    return rand.getrandbits(64).to_bytes(8, 'little')
+
+
+# Initiate contact given a socket object
+def initiate(m, s, PORT):
+    try:
+        # Init connection
+        s.connect(('localhost', PORT))
+
+        # Send initiation message
+        s.send(m)
+        print("Sent initiation message")
+    except:
+        print("Error while sending initiation message")
+        s.close()
+        quit()
+
+# Wait for initiation , and returns the corresponding socket
+def get_connection(s):
+    try:
+        # Wait for connection on AB_PORT
+        print("Waiting for connection")
+        s.listen(1)
+        conn, addr = s.accept()
+        print("Connection Recieved")
+
+        # Decode initiation message 
+        m = conn.recv(256)
+        print("Message recieved from connection")
+        return conn, m
+    except:
+        print("Error while recieving initiation message")
+        s.close()
+        quit()
+
+# Send message m as plaintext
+def send_m(m, s):
+    try:
+        s.send(m)
+        print("Sent message:\n%s" % m)
+    except:
+        print("Error sending message")
+        quit()
+    return
+
+# Encrypt and Send message m 
+def send_m_e(m, key, s, mode):
+    try:
+        # Choose our Mode correctly
+        if(mode is DES.ECB):
+            m = encrypt_ecb(m, key)
+
+        send_m(m, s)
+    except:
+        print("Error while encrypting: %s, with key %s" % (m, key))
+        quit()
+    return 
+
+# Recv plain text 
+def recv_m(s):
+    try:
+        m = s.recv(2048)
+        print("Message recieved:")
+        print(m)
+        return m
+    except:
+        print("Error while recieving message")
+        quit()
+# Recv and decrypt message m
+def recv_m_d(s, key, mode):
+    m = -1
+    try:
+        # Receive the cipher text
+        cipher = s.recv(256)
+
+        # Decrypt using the given key
+        if(mode is DES.ECB):
+            m = decrypt_ecb(cipher, key)
+    
+        # Show output
+        print("Unencrypted Message recieved:\n%s" % m) 
+    except:
+        print("Error while decrypting message")
+        quit()
+        
+    return m
+
+# Do 3DES(ECB) Encryption on a message
+def encrypt_ecb(m, key):
+    c = DES.triple_des(key, DES.ECB)
+    return c.encrypt(m)
+
+# Do 3DES(CBC) Encryption on a message
+def encrypt_cbc(m, key, IV):
+    c = DES.triple_des(key, DES.CBC, IV)
+    return c.encrypt(m)
+
+# Do 3DES(ECB) decryption on a message
+def decrypt_ecb(m, key):
+    c = DES.triple_des(key, DES.ECB)
+    return c.decrypt(m)
+
+# DO 3DES(CBC) decryption on a message
+def decrypt_cbc(m, key, IV):
+    c = DES.triple_des(key, DES.CBC, IV)
+    return c.decrypt(m)
+
+# Format the message to be a multiple of 8 bytes and return the byte array
+def form_m(m):
+    m = m.encode('ASCII')
+    pad = (8-(len(m) % 8)) * b'\0'
+    m = pad + m
+    return m
